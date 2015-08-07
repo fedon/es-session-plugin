@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestRequest.Method;
 import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.client.proxy.WebResourceFactory;
 
-import com.cognoscience.api.skillcollider.LoginREST;
+import com.cognoscience.api.skillcollider.IntegrationREST;
 
 /**
  * @author Dmytro Fedonin
@@ -21,21 +21,22 @@ import com.cognoscience.api.skillcollider.LoginREST;
  */
 public class SessionFilter extends RestFilter {
     private ESLogger log = Loggers.getLogger(this.getClass());
-    private LoginREST client;
+    private IntegrationREST client;
+    // TODO build base from Referer
     static String base = "http://localhost:8080/skillcollider/rest";
 
     public SessionFilter() {
         ClientConfig cc = new ClientConfig();
         cc.register(ClientFilter.class);
         Client resource = ClientBuilder.newClient(cc);
-        client = WebResourceFactory.newResource(LoginREST.class, resource.target(base));
+        client = WebResourceFactory.newResource(IntegrationREST.class, resource.target(base));
     }
 
     @Override
     public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
         String cookie = request.header("Kookie");
         // TODO cash
-        log.info("-- SessionFilter.process -- " + request.header("Referer") + " ## " + request.header("Kookie"));
+        log.debug("-- SessionFilter.process -- " + request.header("Referer") + " ## " + request.header("Kookie"));
         Method method = request.method();
         if (method == Method.OPTIONS) {
             log.info("++ options ++");
@@ -47,9 +48,9 @@ public class SessionFilter extends RestFilter {
                 ClientFilter.setCookie(cookie);
             }
             client.checkSession();
-            log.info("+++process accepted");
+            log.debug("+++process accepted");
         } catch (Exception e) {
-            log.info("--- process rejected", e);
+            log.warn("--- process rejected", e);
             return;
         }
         filterChain.continueProcessing(request, channel);
