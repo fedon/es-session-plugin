@@ -31,7 +31,7 @@ public class SessionService extends AbstractLifecycleComponent<SessionService> {
     @Override
     protected void doStart() throws ElasticsearchException {
         log.info("== SessionService.doStart ==");
-        restController.registerFilter(new SessionFilter());
+        restController.registerFilter(new SessionFilter(this));
     }
 
     @Override

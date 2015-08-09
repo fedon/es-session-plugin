@@ -10,6 +10,7 @@ import org.elasticsearch.rest.RestFilter;
 import org.elasticsearch.rest.RestFilterChain;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
+import org.fedon.elasticsearch.plugin.SessionService;
 import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.client.proxy.WebResourceFactory;
 
@@ -21,33 +22,51 @@ import com.cognoscience.api.skillcollider.IntegrationREST;
  */
 public class SessionFilter extends RestFilter {
     private ESLogger log = Loggers.getLogger(this.getClass());
-    private IntegrationREST client;
+    private IntegrationREST proxy;
+    // TODO get from settings
+    private String referer = "/exp";
+    private Client client;
     // TODO build base from Referer
-    static String base = "http://localhost:8080/skillcollider/rest";
+    private String base = "rest";
+    // private SessionService service;
+    final String refererAttr = "cors.session.referer.url.pattern";
+    final String baseAttr = "cors.session.rest.context";
 
-    public SessionFilter() {
+    public SessionFilter(SessionService service) {
+        // this.service = service;
+        referer = service.getSettings().get(refererAttr, referer);
+        base = service.getSettings().get(baseAttr, base);
         ClientConfig cc = new ClientConfig();
         cc.register(ClientFilter.class);
-        Client resource = ClientBuilder.newClient(cc);
-        client = WebResourceFactory.newResource(IntegrationREST.class, resource.target(base));
+        client = ClientBuilder.newClient(cc);
     }
 
     @Override
     public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
-        String cookie = request.header("Kookie");
-        // TODO cash
-        log.debug("-- SessionFilter.process -- " + request.header("Referer") + " ## " + request.header("Kookie"));
+        // Allow OPTIONS without auth
         Method method = request.method();
         if (method == Method.OPTIONS) {
             log.info("++ options ++");
             filterChain.continueProcessing(request, channel);
             return;
         }
+        String cookie = request.header("Kookie");
+        String url = null;
+        if (proxy == null) {
+            url = request.header("Referer");
+            if (url == null || url.length() < 10) {
+                return;
+            }
+            base = url.substring(0, url.indexOf(referer, 5) + 1) + base;
+            proxy = WebResourceFactory.newResource(IntegrationREST.class, client.target(base));
+        }
+        // TODO cash
+        log.info("-- SessionFilter.process -- " + base + " ## " + cookie + " ## " + this);
         try {
             if (cookie != null && cookie.length() > 0) {
                 ClientFilter.setCookie(cookie);
             }
-            client.checkSession();
+            proxy.checkSession();
             log.debug("+++process accepted");
         } catch (Exception e) {
             log.warn("--- process rejected", e);
