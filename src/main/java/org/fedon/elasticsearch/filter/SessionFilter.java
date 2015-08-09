@@ -23,10 +23,8 @@ import com.cognoscience.api.skillcollider.IntegrationREST;
 public class SessionFilter extends RestFilter {
     private ESLogger log = Loggers.getLogger(this.getClass());
     private IntegrationREST proxy;
-    // TODO get from settings
     private String referer = "/exp";
     private Client client;
-    // TODO build base from Referer
     private String base = "rest";
     // private SessionService service;
     final String refererAttr = "cors.session.referer.url.pattern";
