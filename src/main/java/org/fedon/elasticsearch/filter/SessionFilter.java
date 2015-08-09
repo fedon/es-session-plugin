@@ -26,12 +26,10 @@ public class SessionFilter extends RestFilter {
     private String referer = "/exp";
     private Client client;
     private String base = "rest";
-    // private SessionService service;
     final String refererAttr = "cors.session.referer.url.pattern";
     final String baseAttr = "cors.session.rest.context";
 
     public SessionFilter(SessionService service) {
-        // this.service = service;
         referer = service.getSettings().get(refererAttr, referer);
         base = service.getSettings().get(baseAttr, base);
         ClientConfig cc = new ClientConfig();
