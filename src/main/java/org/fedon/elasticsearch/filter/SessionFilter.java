@@ -1,7 +1,13 @@
 package org.fedon.elasticsearch.filter;
 
+import java.util.concurrent.TimeUnit;
+
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
+
+import jersey.repackaged.com.google.common.cache.CacheBuilder;
+import jersey.repackaged.com.google.common.cache.CacheLoader;
+import jersey.repackaged.com.google.common.cache.LoadingCache;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -23,6 +29,8 @@ import com.cognoscience.api.skillcollider.IntegrationREST;
 public class SessionFilter extends RestFilter {
     private ESLogger log = Loggers.getLogger(this.getClass());
     private IntegrationREST proxy;
+
+    private LoadingCache<String, String> cache;
     private String referer = "/exp";
     private Client client;
     private String base = "rest";
@@ -30,17 +38,30 @@ public class SessionFilter extends RestFilter {
     final String baseAttr = "cors.session.rest.base";
     final String restContextAttr = "cors.session.rest.context";
     final String refererAttr = "cors.session.referer.url.pattern";
+    final String durationAttr = "cors.session.cach.duration";
+    final String sizeAttr = "cors.session.cach.size";
 
     public SessionFilter(SessionService service) {
         referer = service.getSettings().get(refererAttr, referer);
+        String restBase = service.getSettings().get(baseAttr);
+        base = service.getSettings().get(restContextAttr, base);
         ClientConfig cc = new ClientConfig();
         cc.register(ClientFilter.class);
         client = ClientBuilder.newClient(cc);
-        String restBase = service.getSettings().get(baseAttr);
         if (restBase != null) {
             proxy = WebResourceFactory.newResource(IntegrationREST.class, client.target(restBase));
+            base = restBase;
         }
-        base = service.getSettings().get(restContextAttr, base);
+
+        Long size = Long.parseLong(service.getSettings().get(sizeAttr, "100"));
+        Long duration = Long.parseLong(service.getSettings().get(durationAttr, "300"));
+        cache = CacheBuilder.newBuilder().maximumSize(size).expireAfterAccess(duration, TimeUnit.SECONDS)
+                .build(new CacheLoader<String, String>() {
+                    @Override
+                    public String load(String key) throws Exception {
+                        return notFound();
+                    }
+                });
     }
 
     @Override
@@ -62,8 +83,18 @@ public class SessionFilter extends RestFilter {
             base = url.substring(0, url.indexOf(referer, 5) + 1) + base;
             proxy = WebResourceFactory.newResource(IntegrationREST.class, client.target(base));
         }
-        // TODO cash
-        log.info("-- SessionFilter.process -- " + base + " ## " + cookie + " ## " + this);
+
+        try {
+            String result = cache.get(cookie);
+            // in cash if result is empty string
+            if (result.length() == 0) {
+                log.debug("+++ in cache");
+                filterChain.continueProcessing(request, channel);
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("Cache exception: " + e.getMessage());
+        }
         try {
             if (cookie != null && cookie.length() > 0) {
                 ClientFilter.setCookie(cookie);
@@ -72,8 +103,16 @@ public class SessionFilter extends RestFilter {
             log.debug("+++process accepted");
         } catch (Exception e) {
             log.warn("--- process rejected", e);
+            cache.invalidate(cookie);
             return;
         }
+        log.debug("Cache put: " + cookie);
+        cache.put(cookie, "");
         filterChain.continueProcessing(request, channel);
+    }
+
+    String notFound() {
+        log.debug("***");
+        return "###";
     }
 }
