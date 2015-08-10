@@ -26,15 +26,21 @@ public class SessionFilter extends RestFilter {
     private String referer = "/exp";
     private Client client;
     private String base = "rest";
+    // static config in form of 'http://localhost:8080/skillcollider/rest' if not set will use refererAttr to find out from the first call
+    final String baseAttr = "cors.session.rest.base";
+    final String restContextAttr = "cors.session.rest.context";
     final String refererAttr = "cors.session.referer.url.pattern";
-    final String baseAttr = "cors.session.rest.context";
 
     public SessionFilter(SessionService service) {
         referer = service.getSettings().get(refererAttr, referer);
-        base = service.getSettings().get(baseAttr, base);
         ClientConfig cc = new ClientConfig();
         cc.register(ClientFilter.class);
         client = ClientBuilder.newClient(cc);
+        String restBase = service.getSettings().get(baseAttr);
+        if (restBase != null) {
+            proxy = WebResourceFactory.newResource(IntegrationREST.class, client.target(restBase));
+        }
+        base = service.getSettings().get(restContextAttr, base);
     }
 
     @Override
