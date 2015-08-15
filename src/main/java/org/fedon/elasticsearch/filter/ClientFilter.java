@@ -19,7 +19,6 @@ public class ClientFilter implements ClientRequestFilter {
     @Override
     public void filter(ClientRequestContext requestContext) throws IOException {
         String cookie = cookieLocal.get();
-        // TODO cash map?
         if (cookie != null && cookie.length() > 0) {
             requestContext.getHeaders().add("Cookie", cookie);
         }
